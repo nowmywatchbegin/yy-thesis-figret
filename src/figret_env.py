@@ -127,16 +127,26 @@ class FigretEnv():
             paths: the candidate paths
         """
         paths_arr = []
+        self.valid_path_mask = []  # True if all edges in path exist in this topology
         for i in range(self.num_nodes):
             for j in range(self.num_nodes):
                 if i == j:
                     continue
                 for p in paths[(i, j)]:
-                    p_ = [self.edges_map[e] for e in p]
-                    p__ = np.zeros((int(self.num_edges),))
-                    for k in p_:
-                        p__[k] = 1
-                    paths_arr.append(p__)
+                    # Check if all edges in this path exist in current topology
+                    try:
+                        p_ = [self.edges_map[e] for e in p]
+                        p__ = np.zeros((int(self.num_edges),))
+                        for k in p_:
+                            p__[k] = 1
+                        paths_arr.append(p__)
+                        self.valid_path_mask.append(True)
+                    except KeyError:
+                        # Path uses an edge not in this topology → invalid
+                        p__ = np.zeros((int(self.num_edges),))
+                        paths_arr.append(p__)
+                        self.valid_path_mask.append(False)
+        self.valid_path_mask = np.array(self.valid_path_mask)
         return csr_matrix(np.stack(paths_arr))
     
     def get_commodities_to_paths(self):

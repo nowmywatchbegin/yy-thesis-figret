@@ -31,6 +31,7 @@ class Figret():
                                                torch.Size(pte_coo.shape)).to(device) # shape: (num_paths, num_edges)
         self.tm_hist_std = torch.tensor(env.simulator.get_tm_histories_std()).to(device) # shape: (num_nodes * (num_nodes - 1),)
         self.edges_capacity = torch.tensor(env.capacity).unsqueeze(1).to(device) # shape: (num_edges, 1)
+        self.valid_path_mask = torch.BoolTensor(env.valid_path_mask).to(device)  # shape: (num_paths,)
 
     def loss(self, y_pred_batch, y_true_batch):
         """Compute the loss of the model.
@@ -51,6 +52,11 @@ class Figret():
 
             y_pred = y_pred + 1e-16
             paths_weight = torch.transpose(y_pred, 0, 1) #shape: (num_paths, 1)
+
+            # Zero out invalid paths (those using edges not in current topology)
+            invalid_mask = ~self.valid_path_mask
+            paths_weight[invalid_mask] = 1e-16
+
             commodity_total_weight = self.commodities_to_paths.matmul(paths_weight) #shape: (num_commodities, 1)
             paths_over_total = self.commodities_to_paths.transpose(0, 1).matmul(1.0 / commodity_total_weight) #shape: (num_paths, 1)
             split_ratios = paths_weight.mul(paths_over_total) #shape: (num_paths, 1)
