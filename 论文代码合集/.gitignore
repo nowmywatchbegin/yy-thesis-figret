@@ -1,0 +1,11 @@
+__pycache__/
+.DS_Store
+Model/
+.claude/
+_chunks/
+_pdf_figret.txt
+.idea/
+*.hist
+*.opt
+.venv/
+*.log

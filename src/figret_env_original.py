@@ -37,20 +37,6 @@ class FigretEnv():
         self.commodities_to_paths = self.get_commodities_to_paths()
         self.commodities_to_path_nums = self.get_commodities_to_path_nums()
         self.constant_pathlen = self.is_path_length_constant(self.commodities_to_path_nums)
-        self.load_path_survival()
-
-    def load_path_survival(self):
-        """Load pre-computed path survival rates (Phase 2)."""
-        import os
-        from .config import DATA_DIR
-        surv_path = os.path.join(DATA_DIR, self.topo_name, 'path_survival.json')
-        if os.path.exists(surv_path):
-            import json
-            with open(surv_path) as f:
-                data = json.load(f)
-            self.path_survival = np.array(data['survival_rates'])
-        else:
-            self.path_survival = np.ones(self.num_paths)
         
 
     def set_mode(self, mode):

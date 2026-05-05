@@ -32,7 +32,6 @@ class Figret():
         self.tm_hist_std = torch.tensor(env.simulator.get_tm_histories_std()).to(device) # shape: (num_nodes * (num_nodes - 1),)
         self.edges_capacity = torch.tensor(env.capacity).unsqueeze(1).to(device) # shape: (num_edges, 1)
         self.valid_path_mask = torch.BoolTensor(env.valid_path_mask).to(device)  # shape: (num_paths,)
-        self.path_survival = torch.tensor(env.path_survival).to(device)  # shape: (num_paths,), 0~1
 
     def loss(self, y_pred_batch, y_true_batch):
         """Compute the loss of the model.
@@ -67,9 +66,6 @@ class Figret():
             congestion = flow_on_edges.divide(self.edges_capacity) #shape: (num_edges, 1)
             max_cong = torch.max(congestion.flatten(), dim = 0).values
 
-            # Save split_ratios for Phase 2 penalty (before sensitivity computation may overwrite it)
-            split_ratios_for_penalty = split_ratios.clone()
-
             if self.env.constant_pathlen:
                 max_sensitivity = torch.max(split_ratios.view(num_nodes * (num_nodes - 1), -1), dim = 1).values #shape: (num_commodities,)
             else:
@@ -78,16 +74,11 @@ class Figret():
             weight_max_sensitivity = max_sensitivity.mul(self.tm_hist_std) #(num_commodities,)
             sum_wm_sens = torch.sum(weight_max_sensitivity) / len(weight_max_sensitivity)
 
-            # Phase 2: path survival penalty
-            # Penalize high split_ratios on paths with low survival rates
-            path_surv_penalty = torch.mean(split_ratios_for_penalty.squeeze() * (1.0 - self.path_survival))
-
-            # loss function, three terms: congestion + sensitivity + path survival
-            # Each divided by its own .item() for normalization, then weighted by alpha/beta
+            # loss function, the first term is the congestion, the second term is the sensitivity.
+            # The operation of dividing by item() is used to balance different objectives, 
+            # ensuring they are on the same scale. Then, alpha is used to adjust their importance.
             loss = 1.0 - max_cong if max_cong.item() == 0.0 else \
-                    max_cong / max_cong.item() \
-                    + self.props.alpha * sum_wm_sens / sum_wm_sens.item() \
-                    + self.props.beta * path_surv_penalty / (path_surv_penalty.item() + 1e-16)
+                    max_cong / max_cong.item() + self.props.alpha * sum_wm_sens / sum_wm_sens.item()
             loss_val = 1.0 if opt == 0.0 else max_cong.item() / opt
             losses.append(loss)
             loss_vals.append(loss_val)

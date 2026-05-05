@@ -12,7 +12,6 @@ def add_default_args(parser):
 
     parser.add_argument('--hist_len', type=int, default = 12)
     parser.add_argument('--alpha', type=float, default = 0.03)
-    parser.add_argument('--beta', type=float, default = 0.05)
 
     parser.add_argument('--opt_name', type=str, default = '')
 

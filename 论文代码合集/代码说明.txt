@@ -1,0 +1,75 @@
+================================================================================
+                    FIGRET + LEO 卫星网络 毕设代码说明
+================================================================================
+
+【一、原始 FIGRET 源码（原作者 Ximeng Liu 等，SIGCOMM 2024）】
+
+  figret.py                    - 主程序入口，解析命令行参数，调用训练/测试流程
+  figret_helper.py             - 命令行参数定义（修改版：新增 --beta 参数）
+  figret_helper_original.py    - 原始版备份（未改）
+
+  src/figret_model.py          - FIGRET 核心：损失函数、训练循环、数据集（修改版）
+  src/figret_model_original.py - 原始版备份
+  src/figret_env.py            - 拓扑环境：读取 JSON 图、路径矩阵构建（修改版）
+  src/figret_env_original.py   - 原始版备份
+  src/figret_net.py            - 神经网络结构（MLP，未修改）
+  src/figret_simulator.py      - 数据加载：读取 .hist/.opt 文件（未修改）
+  src/utils.py                 - 工具函数：数据归一化、文件读写（未修改）
+  src/config.py                - 路径配置：DATA_DIR / MODEL_DIR / RESULT_DIR（未修改）
+  src/__init__.py              - Python 包初始化
+
+  requirements.txt             - Python 依赖库
+
+
+【二、Phase 0：数据预处理】
+
+  Phase0_预处理/preprocess_0a_topology.py  - 解析 LEO 原始数据 → 计算 3D 链路距离
+                                             → 4300km 筛选 → 生成 189 个拓扑 JSON
+  Phase0_预处理/preprocess_0b_paths.py     - K=3 最短路径算法 → 生成候选路径 tunnels.txt
+                                             （9120 对 S-D，共 24866 条路径）
+  Phase0_预处理/preprocess_0c_traffic.py   - 从 Facebook 数据提取统计规律
+                                             → 生成 LEO 模拟流量（2400 训练 + 600 测试）
+
+
+【三、Phase 1：基准测试（证明 FIGRET 直接应用于 LEO 会失效）】
+
+  Phase1_基准测试/phase1_train.py          - 在指定时间片上训练 FIGRET 模型
+  Phase1_基准测试/phase1_test_model.py     - 跨拓扑测试+画图（通用版，支持命令行参数）
+                                             用法：python phase1_test_model.py 0
+  Phase1_基准测试/phase1_test.py           - 计算三条基线算法（ECMP/SPF/DW）在全部
+                                             189 片上的 MLU 值
+
+
+【四、Phase 2：改进 FIGRET（损失函数加入路径存活率惩罚）】
+
+  Phase2_改进/phase2_grid.py        - β 值网格搜索（试 0.01/0.05/0.1，选最优）
+  Phase2_改进/phase2_train.py       - 多拓扑联合训练（含 β 惩罚，早期版本）
+  Phase2_改进/phase2_train_final.py - 最终版训练（全图拓扑 + β=0.1）
+  Phase2_改进/phase2_quick_test.py  - 快速测试：新旧 FIGRET + 基线在片 50~188 上的对比
+  Phase2_改进/phase2_full_plot.py   - 全 189 片新旧对比图的生成
+  Phase2_改进/phase2_compare.py     - Phase 1 vs Phase 2 详细对比
+
+
+【五、代码修改说明】
+
+  修改了 3 个文件，总计约 30 行：
+
+  1. figret_helper.py：加一行 --beta 参数定义
+  2. src/figret_env.py：
+     - get_paths_to_edges()：处理断路器径（KeyError → 无效遮罩）
+     - load_path_survival()：加载预计算的路径存活率
+  3. src/figret_model.py：
+     - __init__()：加载 valid_path_mask 和 path_survival
+     - loss()：无效路径权重归零 + 新增 β × 路径存活率惩罚项
+
+  原始文件均已备份（*_original.py），方便对比。
+
+
+【六、运行说明】
+
+  1. 安装依赖：pip install -r requirements.txt（PyTorch 需单独安装）
+  2. 预处理数据（按 0a → 0b → 0c 顺序运行）
+  3. 训练：python figret.py --topo_name leo --epochs 30 --alpha 0.03 --beta 0.1
+  4. 测试：python phase1_test_model.py 0
+  5. 完整对比图：python phase2_full_plot.py
+================================================================================
